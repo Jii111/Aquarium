@@ -1,0 +1,187 @@
+---
+title: "Chapter 2 Essentials(Chap2.r.txt)"
+output: word_document
+date: "2023-09-26"
+---
+0921
+```{r}
+# Chapter2 Essentials
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+algae <- algae[-c(62,199),]
+
+algae$season<-as.factor(algae$season)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+clean.algae <- algae
+
+library(cluster)
+dist.mtx <- as.matrix(daisy(algae[,1:11],stand=T))
+
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+
+for(r in which(!complete.cases(algae))) clean.algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+
+summary(clean.algae) # missing 없음 확인
+clean.algae[is.na(clean.algae),]
+```
+```
+0926
+-imputation할 때 x만 넣어야 함,y는 안됨
+```{r}
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+
+
+algae <- algae[-c(62,199),] #remove observations with high missing rate
+#recheck the categorical variables
+algae$season<-as.factor(algae$season)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+clean.algae <- algae
+
+library(cluster)
+dist.mtx <- as.matrix(daisy(algae[,1:11],stand=T))
+
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+
+for(r in which(!complete.cases(algae))) clean.algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+
+clean.algae[!complete.cases(clean.algae),]
+```
+
+```{r}
+# my imputation 
+#algae.x<-algae[,1:11]
+#algae.x.imp<-myimputation(algae.x)
+#mydata<-cbind(algae$a1,algae.x.imp)
+
+```
+y = beta0 + beta1*x1+...+betap*xp + e
+e_i ~ iid(0,sigma^2)
+일반적으로 data의 scale(범위)가 크면 분산도 커짐
+
+-잔차를 최소화하는 것이 목표
+
+#matrix form
+Y=XBeta + e
+Y=(y1,...,yn)nx1 vector
+X = 1 x1 x2 ... xp => nx(p+1) matrix
+Beta = (beta0, beta1, ..., betap) => (p+1)x1 vector
+e = (e1,...,en) nx1 vector
+Beta_hat_LSE=(x_transpose*x)inverse*x_transpose*Y
+argmin(Y-Ybeta)_transpose*(Y-XB)
+~가 MLE가 된다//?
+
+lm(Y~.,data=)
+
+```{r}
+### Linear Model fitting 
+
+lm.a1 <- lm(a1 ~ .,data=clean.algae[,1:12])
+
+summary(lm.a1)
+```
+
+categorical variable in X-matrix
+1. dummy variable
+
+x : a,b,c, 3-level categorical variable
+number of dummy variables = number of levels -1
+
+  C1 C2
+a 0  0
+b 1  0
+c 0  1
+
+-이렇게 한 이유 : linear model 때문에
+linear model에서는 one-hot encoding을 적용할 수 없으
+inverse 계산이 안된다
+
+2. one-hot encoding
+number of dummy variables = number of levels
+
+  C1 C2 C3
+a 1  0  0
+b 0  1  0
+c 0  0  1
+
+*해석 : ~의 양이 많아질수록 조류는 증가한다
+*설명의 한계 : 다른 모든 변수가 안변한다는 가정 하에(설명변수들이 모두 독립이라는 가정)
+
+<<numerical value>>
+
+<<Std.Error>>
+
+<<t-value>>
+-귀무가설: beta = 0
+<<p-value>>
+-유의 확률 
+-귀무가설이 참이라는 가정 하에, 검정 통계량(t-value)이 관측할 ??? 확률
+-검정 통계량이 커질수록 p-value는 낮아짐
+
+<<Residual standard error>>
+<<R-Squared>>
+-전체 y의 변동량 중에 회귀 y가 설명하는 변동량의 비율
+-전체 Y의 변동량/sum((Yi-Y_bar)^2)
+-SST = SSReg + SSError
+SST=sum(y-ybar)^2
+SSError=RSS=sum(Y-Yhat)^2
+R-squared = SSReg/SST = 1-SSE/SST
+R^2 = 1 equiv all observed Y = fitted Y
+
+<<F-statistic>>
+-"통계적 가설 검정", "귀무가설"
+-귀무가설 : all beta = 0
+-p-value가 작다
+-모델이 유의하다는 말은 없음, 파라미터가 유의하다
+
+```{r}
+lm.a1
+names(lm.a1)
+lm.a1.pred<-predict(lm.a1,clean.algae)
+summary(lm.a1.pred)
+plot(clean.algae$a1,lm.a1.pred)
+abline(0,1,col=2)
+
+#ifelse(condition,value if cond=T,value if cond=F)
+sum(ifelse(clean.algae$a1==0,1,0))
+sum(ifelse(clean.algae$a1==0,1,0))/length(clean.algae$a1)
+# plot
+#y가 0이 많은 데이터 >> regression에 좋지 않음
+#pred는 음수가 나올 수 없는데 존재
+```
+
+```{r}
+final.lm <- step(lm.a1)
+
+summary(final.lm)
+```
+
+
