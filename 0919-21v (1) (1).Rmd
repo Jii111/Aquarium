@@ -1,0 +1,232 @@
+---
+title: "0919-21 code2_txt,KNN Imputation,MyImputation Code"
+output: html_document
+date: "2023-09-19"
+---
+<<0919>>
+```{r}
+
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+            header=F,dec='.',col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3','NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'), na.strings=c('XXXXXXX'), stringsAsFactors=T)
+
+library(lattice)
+# 다시 실행해보기
+#min02<-equal.count(na.omit(algae))
+
+#stripplot(season ~ a3|minO2,data=algae[!is.na(algae$mnO2),])
+#stripplot(season ~ a3|minO2,data=algae[!is.na(algae$mnO2),])
+#stripplot(season ~ a3|minO2,data=algae[!is.na(algae$mnO2),])
+```
+
+# ==================================================================
+# Section 'Unknown Values'
+
+```{r}
+algae[!complete.cases(algae),]
+nrow(algae)
+```
+
+<handling missing values>
+1. use complete cases only (drop all observations with missing values)
+enough data, missing proportion is small.
+
+2. use a representative value(대표값을 사용)
+### global 느낌
+numeric : mean, median
+categorical : most frequent value(mode)
+
+3. missing value numeric case
+a. find the variable with the highest correlation
+missing이 있는 변수와 abs(correlation)이 가장 높은 변수를 찾는다.
+X1 missing이 있는 변수
+X7 |상관계수| 가장 높은 변수
+
+X1 = beta0 +beta1*X7 SLR model fitting
+X1에 missing이 있는 경우에 fitted value로 imputation한다
+장점 : 계산이 빠름
+단점 : 값은 관측치에서 X1, X7이 모두 missing? 사용불가 
+missing 변수가 범주형이면 사용불가
+
+4. KNN imputation
+### local 느낌
+missing이 있는 관측치와 가장 가까운 K개의 관측치(보통 K=10)를 찾아서 numeric이면 mean, median, categorical 이면 mode 값으로 imputation한다.
+# 최근 imputation : boosting(xgboost), missing 있는 변수 imputation
+장점 : 좋은 imputation
+단점 : 계산량이 많다. 시간이 오래 걸릴 수 있다. 특히 data가 크면, 
+# numeric: 유클리안 거리
+# categorical이라면? 
+
+```{r}
+## 1. use complete cases only (drop all observations with missing values)
+algae <- na.omit(algae)
+
+```
+
+```{r}
+## 2. use a representative value(대표값을 사용)
+algae[!complete.cases(algae),c(1:11)]
+# 특정 row에 missing proportion이 5-60%라면 믿을 수 없음
+algae <- algae[-c(62,199),]
+
+# median
+algae[is.na(algae$Chla),]
+algae[is.na(algae$Chla),'Chla'] <- median(algae$Chla,na.rm=T)
+median(algae$Chla,na.rm=T)
+
+# mode
+summary(algae[,1:3])
+# 이 때 y는 제외해야함, 그리고 앞의 3개는 categorical
+round(cor(algae[,4:11],use="complete.obs"),2)
+symnum(cor(algae[,4:11],use="complete.obs"))
+```
+
+<<0921>>
+```{r}
+## 2. use a representative value(대표값을 사용)
+
+# mode
+round(cor(algae[,4:11],use="complete.obs"),2)
+symnum(cor(algae[,4:11],use="complete.obs"))
+```
+
+결과 해석
+-oPO4 and PO4 have the highest correlation.
+PO4 have one missing value.
+We will use SLR for missing value imputation in PO4.
+PO4 = Y
+oPO4 = X
+
+```{r}
+# general syntax : lm1<-lm(y~x1+x2+x3,data=)
+lm1<-lm(PO4~oPO4,data=algae)
+### missing이 있는 걸 y로, missing이 없는 걸 x로 설정해야함
+summary(lm1)
+#  PO4 = 42.897 +1.293*oPO4
+algae[is.na(algae$PO4),]
+#SLR을 이용해서 모형의 예측값으로 missing 값을 대체
+#obs 28의 PO4 값은 42.897+1.293*4
+#R에서 모든 예측모형의 예측값은 predict 함수를 이용해서 계산할 수 있음
+lm1.pred<-predict(lm1,algae)
+### missing value를 remove할 경우, index가 사라지므로(정상적인 index를 위해서는 재설정 필요) 주의
+lm1.pred[28]
+#재설정하는 법
+#row.names(algae)<-1:198
+```
+
+# 4. KNN imputation
+# missing이 있는 관측치와 가장 가까운 k개(주로 10)의 관측치를 찾아서 그 k개의 해당 변수의 평균, 중앙값, 또는 mode로 missing value값을 채운다.
+
+```{r}
+# 4. KNN imputation
+
+# distance
+set.seed(123)
+x<-matrix(sample(20),nrow=4,ncol=5)
+x
+### pairwise elementwise 거리 계산
+dist(x)
+as.matrix(dist(x))
+```
+### 중요!!!
+-data mixed type : numerical + categorical variables
+### categorical의 경우, 같으면 1 다르면 0으로 거리 계산하기도 ㅏㅁ
+-거리 계산하기 전에 일단 모든 변수들을 standardize(normalize)해야한다. 
+  -왜?
+  : 거리 계산에 대한 기여도를 모든 변수들이 비슷하게 하기 위해서.
+  -standariize ; 평균 0, 분산1 (x-mean)/var
+  -min-max normalization : min=0, max=1 transformation
+  -(x-min)/(max-min)
+  
+  R cluster package daisy() function can compute the distance between observations with numeric + categorical
+
+```{r}
+library(cluster)
+?daisy
+### mixed type!!!
+
+# standarize
+dist.mtx <- as.matrix(daisy(algae,stand=T))
+dim(dist.mtx)
+dist.mtx[1,]
+
+which(!complete.cases(algae))
+length(which(!complete.cases(algae)))
+# numeric이면 median으로, categorical이면 mode로 채우는 거임
+sort(dist.mtx[38,])[2:11] ### 자기 자신 제외!!
+as.integer(names(sort(dist.mtx[38,])[2:11]))
+
+algae[38,]
+algae[as.integer(names(sort(dist.mtx[38,])[2:11])),'mnO2']
+# mean
+mean(algae[as.integer(names(sort(dist.mtx[38,])[2:11])),'mnO2'])
+# median
+median(algae[as.integer(names(sort(dist.mtx[38,])[2:11])),'mnO2'])
+```
+
+```{r}
+# na 한번에 처리하기
+algae[55,]
+apply(algae[c(as.integer(names(sort(dist.mtx[55,])[2:11]))),which(is.na(algae[55,]))],2,median,na.rm=T)
+
+### 아예 함수를 냅다 짜버림
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+levels(algae$season)
+
+###
+for(r in which(!complete.cases(algae))) algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+```
+
+
+
+My Imputation.txt
+```{r}
+myimputation<-function(x,k=10){
+# this function imputes x-matrix using k-nn imputataion
+# x : x-matrix, k: nearest k neighborhood 
+# central. value functions fills the missing data
+# if numeric -> median
+# if categorical -> most frequen value
+
+	central.value <- function(x) {
+		if (is.numeric(x)) median(x,na.rm=T)
+		else if (is.factor(x)) levels(x)[which.max(table(x))] #mode value
+		else { #Compute mode value after change character varible to factor
+			f <- as.factor(x)
+			levels(f)[which.max(table(f))]
+		}
+	}
+	library(cluster)
+#dist.mtx has all pairwise distances in x-matrix
+#it uses daisy function in cluster package
+	dist.mtx<-as.matrix(daisy(x,stand=T))
+	for(r in which(!complete.cases(x))) x[r,which(is.na(x[r,]))] <- apply(data.frame(x[c(as.integer(names(sort(dist.mtx[r,])[2:(k+1)]))), which(is.na(x[r,]))]), 2,central.value)
+
+	return(x)
+}
+
+algae2<-myimputation(algae,10)
+summary(algae2)
+```
+
+KNN imputation package 이용
+```{r}
+library(caret)
+library(RANN)
+
+#imp.model<-preProcess(algaex,method="knnImpute",k=10)
+# 모든 변수를 일단 standarize : linear model, bagging 등의 몇몇 모델들은 그럴 필요가 전혀 없음
+# -> preProcess 는 모두 standarize해버림
+#imp.model
+
+#algaex.imp<-predict(imp.model,algaex)
+#summary(algaex.imp)
+#anyNA(algaex.imp)
+```
