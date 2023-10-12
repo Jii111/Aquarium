@@ -1,0 +1,587 @@
+---
+title: "Chapter 2 Essentials(Chap2.r.txt)"
+output: word_document
+date: "2023-09-26"
+---
+0921
+```{r}
+# Chapter2 Essentials
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+algae <- algae[-c(62,199),]
+
+algae$season<-as.factor(algae$season)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+clean.algae <- algae
+
+library(cluster)
+dist.mtx <- as.matrix(daisy(algae[,1:11],stand=T))
+
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+
+for(r in which(!complete.cases(algae))) clean.algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+
+summary(clean.algae) # missing 없음 확인
+clean.algae[is.na(clean.algae),]
+```
+```
+0926
+-imputation할 때 x만 넣어야 함,y는 안됨
+```{r}
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+
+
+algae <- algae[-c(62,199),] #remove observations with high missing rate
+#recheck the categorical variables
+algae$season<-as.factor(algae$season)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+clean.algae <- algae
+
+library(cluster)
+dist.mtx <- as.matrix(daisy(algae[,1:11],stand=T))
+
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+
+for(r in which(!complete.cases(algae))) clean.algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+
+clean.algae[!complete.cases(clean.algae),]
+```
+
+```{r}
+# my imputation 
+#algae.x<-algae[,1:11]
+#algae.x.imp<-myimputation(algae.x)
+#mydata<-cbind(algae$a1,algae.x.imp)
+
+```
+y = beta0 + beta1*x1+...+betap*xp + e
+e_i ~ iid(0,sigma^2)
+일반적으로 data의 scale(범위)가 크면 분산도 커짐
+
+-잔차를 최소화하는 것이 목표
+
+#matrix form
+Y=XBeta + e
+Y=(y1,...,yn)nx1 vector
+X = 1 x1 x2 ... xp => nx(p+1) matrix
+Beta = (beta0, beta1, ..., betap) => (p+1)x1 vector
+e = (e1,...,en) nx1 vector
+Beta_hat_LSE=(x_transpose*x)inverse*x_transpose*Y
+argmin(Y-Ybeta)_transpose*(Y-XB)
+~가 MLE가 된다//?
+
+lm(Y~.,data=)
+
+```{r}
+### Linear Model fitting 
+
+lm.a1 <- lm(a1 ~ .,data=clean.algae[,1:12])
+summary(lm.a1)
+
+```
+
+categorical variable in X-matrix
+1. dummy variable
+
+x : a,b,c, 3-level categorical variable
+number of dummy variables = number of levels -1
+
+  C1 C2
+a 0  0
+b 1  0
+c 0  1
+
+-이렇게 한 이유 : linear model 때문에
+linear model에서는 one-hot encoding을 적용할 수 없으
+inverse 계산이 안된다
+
+2. one-hot encoding
+number of dummy variables = number of levels
+
+  C1 C2 C3
+a 1  0  0
+b 0  1  0
+c 0  0  1
+
+*해석 : ~의 양이 많아질수록 조류는 증가한다
+*설명의 한계 : 다른 모든 변수가 안변한다는 가정 하에(설명변수들이 모두 독립이라는 가정)
+
+<<numerical value>>
+
+<<Std.Error>>
+
+<<t-value>>
+-귀무가설: beta = 0
+<<p-value>>
+-유의 확률 
+-귀무가설이 참이라는 가정 하에, 검정 통계량(t-value)이 관측할 ??? 확률
+-검정 통계량이 커질수록 p-value는 낮아짐
+
+<<Residual standard error>>
+<<R-Squared>>
+-전체 y의 변동량 중에 회귀 y가 설명하는 변동량의 비율
+-전체 Y의 변동량/sum((Yi-Y_bar)^2)
+-SST = SSReg + SSError
+SST=sum(y-ybar)^2
+SSError=RSS=sum(Y-Yhat)^2
+R-squared = SSReg/SST = 1-SSE/SST
+R^2 = 1 equiv all observed Y = fitted Y
+
+<<F-statistic>>
+-"통계적 가설 검정", "귀무가설"
+-귀무가설 : all beta = 0
+-p-value가 작다
+-모델이 유의하다는 말은 없음, 파라미터가 유의하다
+
+```{r}
+lm.a1
+names(lm.a1)
+lm.a1.pred<-predict(lm.a1,clean.algae)
+summary(lm.a1.pred)
+plot(clean.algae$a1,lm.a1.pred)
+abline(0,1,col=2)
+
+#ifelse(condition,value if cond=T,value if cond=F)
+sum(ifelse(clean.algae$a1==0,1,0))
+sum(ifelse(clean.algae$a1==0,1,0))/length(clean.algae$a1)
+# plot
+#y가 0이 많은 데이터 >> regression에 좋지 않음
+#pred는 음수가 나올 수 없는데 존재
+```
+
+```{r}
+
+final.lm <- step(lm.a1)
+summary(final.lm)
+
+```
+
+### <<1005>>
+```{r}
+summary(lm.a1)
+```
+
+-Best(optimal) prediction Model
+; (쭝요><!!)test data에서 성능이 가장 좋은 model
+=> 모형을 적합(fitting)하는데 사용되지 않은 data
+data를 train(for model fitting)과 test(for model evaluation)로 나누어 사용하지 않으면,
+같은 data로 모형 fitting/evaluation 동시에 하면 overfitting 하는 모형이 선택된다.
+-overfitting? model이 data를 너무 따라간다
+=> overfitting 하는 모형의 문제는 무엇인가?
+  - 예측 모형 1) 어떤 X들의 어떻게 Y에 영향을 주는가?
+  - 예측 모형 2) '가까운' 미래에 예측
+overfitting 모형은 1, 2 다 안좋다
+
+So, Data를 train/test로 나눠서 fitting/evaluation해야한다
+
+# data 수가 적을 수록 structual 모형으로 가야함(deep learning에서는 성능 떨어짐, linear model 이런 걸로 가야함)
+
+-성능이  좋다?
+= 예측 오차가 작다
+- Reg : residual of sum squared, mse(1/n*sigma(y-y.hat))나 rmse(root of mse) 사용 
+- Classification 
+: accuracy(1/n*sigma(I(Yi=yi.hat)), 오분류율(1-accuracy)
+- 이거 말고도 10개쯤 더 있음. why? 오분류했을 경우 발생하는 비용(cost)이 다름. 
+ex. SPAM(S) vs EMAIL(E)
+S -> E 오분류
+E -> S 오분류 --이게 더 큰 문제!
+2 비용 > 1 비용 --> decision boundary 조절
+
+-train/test 나누는 방법? random partition
+-cross-validation
+# 어쩌다가 성능이 좋을 수 있는 경우를 위해
+: data를 k개의 random partition으로 나눈다
+ex. k=5
+|--1--|--2--|--3--|--4--|--5--|
+step 1) 1: test(예측오차), 2,3,4,5: train
+step 2) 2: test
+step 3) 3: test
+...
+# 이 경우 모델 5번 fitting해야 함, 변수들이 fitting된 상태에서 예측 오차 계산, 선형 모델에서는 잘 사용 x
+finally) 
+예측오차들의 평균 = "cv-error"
+-각각의 예측 모형(from train)에서 최적 모형 찾을 때 cv-error 사용
+-성능 비교(from test) 후 final optimal model 찾는다
+
+-------------------------------------------------------------
+<Best subset selection in MLR>
+-"변수(설명 변수) 선택"
+# data가 unbalance할 때 가장 괴로움
+- 좋은 모형? 
+1) 예측 오차 적은 모형
+2) 가능한 간단한 모형
+# linear model에서는 설명 변수가 적을수록 간단한 모형
+두 가지를 동시에 개선하기는 힘듦 -> 두 가지를 서서 성능지표 만들자
+=> AIC(Akaike Information Criterion)
+= RSS와 P(설명변수 개수)의 weighted aug
+= (쭝요!!!)nlogRSS/n +2*p
+# RSS와 P의 관계는 약간 우하향, 여기 어딘가에 optimal있지 않을까 하는 생각
+
+```{r}
+# ?exactAIC
+```
+
+# AIC와 p의 그래프는 이차함수
+(쭝요!!)AIC가 min인 모형이 가장 좋은 모형(AIC가 가장 낮은 optimal model에서의 p*)
+p<p* : underfitting
+p>p* : overfitting
+# 그놈의.....결정계수 정의를......외우세요..
+# adjust r square은 잘 사용 x, 
+----------------------
+BIC(Baysian I.C)
+=nlogRSS/n + (logn)*p
+n : sample size
+# log n> 2보다 크면..? (log n)*p>2..? 더 harsh한 페널티
+# weight이 클수록 간단한 모형
+# BIC가 AIC보다 더 간단한 모형 선호
+=> 일반적으로 BIC가 Min 모형이 
+AIC가 Min 모형보다 더 간단한 모형이다.
+#n이 무한대로 갈 때, BIC가 더 좋은 모형이라는 걸 추론할 수 있음
+-----------------------
+-AIC가 min 모형을 어떻게 찾을수 있는가?
+1) All-possible Regression : 다해보자
+  -p개의 설명변수 있다면? 2**p 모형
+  -R-package "leaps" : p=30-40
+  
+2) local search
+# steep descent 방식
+# 모든 local search 방식은 guarantee할 수 없음
+
+
+<1010>
+# forward selection
+-forward selection만 했을 때의 문제점 : 데이터가 한번 들어오면 나가지 않음
+-> backward eliminatin으로 변수 제거(가장 쓸모없는 변수부터 제거)
+-> 근데 이러면 second test가 없음
+(우리의 목표: AIC가 가장 작은 모형 찾는 것)
+```{r}
+?step
+# step function에서 쓸 수 있는 object는 ____ 아니면 glm
+final.lm<-step(lm.a1)
+# 변수를 빼보면서 AIC 비교(speed가 날라가고~~, 점점 AIC가 줄어드는 폭은 작아짐, 
+# 어디로가든 AIC가 커짐, 이 때 stop!(마지막에는 size, mxPH, NO3,NH4, PO4)
+# 이게 local search ! 그러나 local search와 stepwise로 할 때 결과는 다를 수 없음(AIC는 큰 차이 안남)
+```
+
+```{r}
+
+final.lm<-step(lm.a1,direction="both")
+# 결과의 +와 - 체크
+# scope가 missing이면, default는 backward임
+# coefficient가 없는 변수들은 coefficient=0이라는 말임(즉, large는 0, sizemedium은 3, sizesmall은 10)
+# 왜 나는 sizesmall이런게 안나오지?
+# positive와 negative로 변수를 나눌 수 있음
+# r sqaure : 0.3321
+# 귀무가설은 늘 simple model
+```
+After fitting a regression model, We should make a plot for observed(Y) vs fitted(Yhat)
+```{r}
+final.lm.pred<-predict(final.lm,clean.algae)
+clean.algae$a1
+# regression 끝나면 반드시 만들어야할 것 : observed vs predicted plot!!
+plot(clean.algae$a1,final.lm.pred)
+abline(0,1,col=2)
+# 어떤 boost도 y range에 벗어나지 않는 predicted 값이 나오지만, linear model은 그럴 수 있음 -> 보정 필요
+mean(sum(ifelse(clean.algae$a1==0,1,0)))
+```
+
+Tree Model
+# 앞으로 배울 bagging, boosting의 토대
+
+- (필기 캡처 파일)
+- How to find the optimal Tree?
+1) cost-complexity praning(가지 치기)
+-performance measure = RSS + a|T|(=complexity of Tree=numbe of terminal nodes)
+# tree를 최대한 grow하다가, 밑에서부터 잘라보면서(node 합쳐짐) measure 값 비교 > measure가 가장 작은 tree 선정
+# 즉, fully tree는 사용 x(ovefitting 그 자체임)
+
+2) CV-error가 Min Model을 찾자
+# 모든 예측 모형에 쓸 수 있음
+(그림 필기 파일 2)
+- 실제 tree grow는 어떻게 하는가?
+: optimal model 찾는 건 어렵다. 왜?
+->경우의 수(model 수) 너무 많다.
+-> Greedy Algorithm. 매 step 최선을 다한다.
+# best split인지 어떻게 알지?
+
+<<1012>>
+-트리의 노드는 x_j > t이므로, X_j, t를 찾아야 함
+-fitted value : Y_1^bar(=sigma(R_1에 속하는 i)Yi/n_R1), Y_2^bar
+
+-"Impurity" 최소화
+-Reg에서 이 Measure = RSS
+-RSS = sigma(R_1에 속하는 i)(Y_i-Y^bar)^2/n_R1 + sigma(R_2에 속하는 i)(Y_i-Y^bar)^2/n_R2
+
+for eg.
+X1=[1,3,9,15,25,30]
+(x,0:6) X1<1
+(1:5) X1<9
+...
+(5:1) X1<25
+=> 이 중에 minimum 찾자
+
+X1<15에서 RSS가 Min이 되면 X1의 Best splitting point 찾았음 => Rss_X1
+X2 똑같은 작업 반복 => X2<30 Best RSS_X2
+...
+Xp 똑같은 작업 반복 => Xp<30 Best RSS_Xp
+=> Best of Best?
+예를 들어 RSS_X5 Min -> 첫번째 splitting variable point 찾았다
+
+=> 각각의 child node에서 같은 작업 수행, 즉 Best split(=Min RSS) 찾는다
+
+#데이터 수 커지만 시간 좀 오래 걸림
+
+-언제까지 grow? When we stop?
+: node에 속한 obs의 수 < predicted n_*, then stop, n_*=10 or 5
+# tree는 missing value가 있어도 fitting 할 수 있음
+# missing있는 경우 어떻게 처리하는지
+
+
+
+```{r}
+# Regression Tree fitting
+
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+algae <- algae[-c(62,199),]
+
+
+algae$season<-as.factor(algae$season) # character로 뜨면 안되냐능???
+# 봄여름가을겨울을 2개로 나눈다? 6개의 경우의 수
+# season : bc
+# levels(season)해서 나오는 결과 따라 fall(a), spirng(b)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+library(tree)
+tr1<-tree(a1~., data=algae[,1:12])
+plot(tr1);text(tr1)
+plot(algae$a1,predict(tr1,algae))
+abline(0,1,col=2)
+## check predicted values for the observations with missing
+```
+
+```{r}
+tr1
+```
+<<root 184>> : missing 제외
+<<75540.0>> : deviance, residual sum of square
+<<15.320>>
+```{r}
+aa<-algae[complete.cases(algae),'a1']
+length(aa)
+mean(aa) ##15.320
+
+sum((aa-mean(aa))^2)
+```
+2) Cl < 7.2915에맞는 게 27개 10120.0 46.380 
+3) Cl > 7.2915 157 34890.0  9.975  
+CI 값이 적을 수록 조류의 양이 많구나 알 수 있다
+
+*가 붙은 건 마지막 노드라는 뜻
+
+-언제까지?
+tree.control(!,mincut = 5, mindev = 0.01) <=> 5개보다 작으면 split 하지뫄
+```{r}
+
+tr2<-tree(a1~.,data=algae[,1:12],mincut=20)
+plot(tr2);text(tr2)
+# 훨씬 간단해짐
+
+tr3<-tree(a1~.,data=algae[,1:12],mincut=2)
+plot(tr3);text(tr3)
+```
+
+-tree의 장점
+0보다 작은 predict가 없다!
+왜? fitted value는 이미 있는 y들의 평균이므로, 0보다 작은 y값이 없음, original y의 range를 벗어나지 않음 => 장점
+
+```{r}
+
+# regression 후에는 plot(observed vs fitted) 꼭 그려보기(1000% 시험 나옴)
+plot(algae$a1,predict(tr1,algae))
+abline(0,1,col=2)
+# 계단식으로 plot이 나와야 가장 좋음(tree니까!)
+# y: fitted, x: obseved
+
+plot(algae$a1,predict(tr2,algae))
+abline(0,1,col=2)
+# missing value가 있어서(Cl, PO4에서 missing 있었음) 5개가 아님 .. 뭐가?(계단말하는 듯)
+algae[!complete.cases(algae),1:12]
+# Cl missing인 애는 stop하고, 그냥 그 전 노드까지의 평균(15.3)이 예측 값이 됨
+
+```
+
+```{r}
+
+# cv-error로 최적 모형 찾기
+tr1.cv<-cv.tree(tr1) #보통 10fold 많이 사용
+tr1.cv
+
+plot(tr1.cv)
+#size : terminal node의 개수
+#tree의 복잡성은 terminal node의 개수가 결정
+#deviance = residual sum of mean squared
+# overfitting 되면서 cv-error값이 다시 커짐
+
+#내 plot은 4에서 minimum, 교수님은 5에서 minimum : cv-error는 태생적으로 randomness가 존재하기 때문
+
+tr1.cv<-cv.tree(tr1)
+for (i in 2:10){
+	tr1.cv$dev<-tr1.cv$dev+cv.tree(tr1)$dev
+}
+tr1.cv$dev<-tr1.cv$dev/10
+plot(tr1.cv)  #find the best size
+# error가 비슷할 땐 간단한 모형이 좋음
+
+sim.n<-100
+tr1.cv<-cv.tree(tr1)
+for (i in 2:sim.n){
+	tr1.cv$dev<-tr1.cv$dev+cv.tree(tr1)$dev
+}
+tr1.cv$dev<-tr1.cv$dev/sim.n
+#plot(tr1.cv) #find the best size
+
+
+final.tr<-prune.tree(tr1,best=4)
+plot(final.tr);text(final.tr)
+#이게 best 모형
+# Cl은 역시 중요한 변수였다.
+```
+
+=> linear model이 좋은가 tree model이 좋은가? Use MSE
+-Regression Performance Measure
+  -MSE,RMSE
+  -MSE = sigma(Y_i-Y_i^hat)^2/n
+  -RMSE = sqrt(MSE)
+  -MAE = sigma|Y_i-Y_i^hat)^2/n
+  
+  -nMSE(normalized) = {sigma(Y_i-Y_i^hat)^2/n}/{sigma(Y_i-Y^bar)^2/n} 
+  #분모: 가장 간단한 모형일때의 예측 오차
+  #이 값은 당연히 1보다 작아야 함, 1보다 크면? 뭘 굉장히 잘못했다
+```{r}
+
+algae <- read.table('C:/Users/user/Downloads/Analysis.txt',
+             header=F,
+             dec='.',
+             col.names=c('season','size','speed','mxPH','mnO2','Cl','NO3',
+             'NH4','oPO4','PO4','Chla','a1','a2','a3','a4','a5','a6','a7'),
+             na.strings=c('XXXXXXX'))
+algae <- algae[-c(62,199),] #remove observations with high missing rate
+#recheck the categorical variables
+algae$season<-as.factor(algae$season)
+algae$speed<-as.factor(algae$speed)
+algae$size<-as.factor(algae$size)
+
+clean.algae <- algae
+# 꼭 같은 데이터 사용!!
+
+library(cluster)
+dist.mtx <- as.matrix(daisy(algae[,1:11],stand=T))
+
+central.value <- function(x) {
+  if (is.numeric(x)) median(x,na.rm=T)
+  else if (is.factor(x)) levels(x)[which.max(table(x))]
+  else {
+    f <- as.factor(x)
+    levels(f)[which.max(table(f))]
+  }
+}
+
+
+for(r in which(!complete.cases(algae))) clean.algae[r,which(is.na(algae[r,]))] <- apply(data.frame(algae[c(as.integer(names(sort(dist.mtx[r,])[2:11]))), which(is.na(algae[r,]))]), 2,central.value)
+### Linear Model fitting 
+
+lm.a1 <- lm(a1 ~ .,data=clean.algae[,1:12])
+
+summary(lm.a1)
+
+final.lm <- step(lm.a1) # linear model
+
+
+
+```
+
+```{r}
+
+# 10000%의 확률로 물어봄
+# 지금은 그냥 train data로 했음
+# 값은 동일해야함
+lm.predictions.a1 <- predict(final.lm,clean.algae)
+rt.predictions.a1 <- predict(final.tr,algae)
+
+(mae.a1.lm <- mean(abs(lm.predictions.a1-algae[,'a1'])))
+(mae.a1.rt <- mean(abs(rt.predictions.a1-algae[,'a1'])))
+
+(mse.a1.lm <- mean((lm.predictions.a1-algae[,'a1'])^2))
+(mse.a1.rt <- mean((rt.predictions.a1-algae[,'a1'])^2))
+
+(nmse.a1.lm <- mean((lm.predictions.a1-algae[,'a1'])^2)/mean((mean(algae[,'a1'])-algae[,'a1'])^2))
+(nmse.a1.rt <- mean((rt.predictions.a1-algae[,'a1'])^2)/mean((mean(algae[,'a1'])-algae[,'a1'])^2))
+# 결론 : tree 모형이 더 좋다. 값이 더 작으니까
+
+```
+
+```{r}
+
+# plot
+# 보통은 x가 true, y가 predict(->교재 코드 수정)
+par(mfrow=c(1,2)) #plot space 나누기
+plot(algae[,'a1'],lm.predictions.a1,main="Linear Model",ylab="Predictions",xlab="True Values")
+abline(0,1,lty=2)
+plot(algae[,'a1'],rt.predictions.a1,main="Regression Tree",ylab="Predictions",xlab="True Values")
+abline(0,1,lty=2)
+
+# 둘 다 예측력이 좋지않다는 걸 알 수 있음^^
+# terminal 안에 있는 애들이 homogenious해야함 -> 값이 모여있어야 ideal
+
+```
+
+```{r}
+
+sensible.lm.predictions.a1 <- ifelse(lm.predictions.a1 < 0,0,lm.predictions.a1)
+(mae.a1.lm <- mean(abs(sensible.lm.predictions.a1-algae[,'a1'])))
+(nmse.a1.lm <- mean((sensible.lm.predictions.a1-algae[,'a1'])^2)/mean((mean(algae[,'a1'])-algae[,'a1'])^2))
+# 아즈 조금 작아짐
+
+```
+[중간 고사 공지]
+-오늘 수업까지가 시험범위
+-다음주는 summary 수업
+-이론(train, test 왜 나눠야 하는가/tree란 뭔가)
+-실제 데이터 주고 fitting(linear model, stepwise, 회귀 계수, 해석, categorical 변수 있는 경우, plot 등)
+-자세한 이야기는 다음주 화요일에
+
